@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>exchange-feeds</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>exchange-feeds</h1>
+      <div class="meta">
+        <span id="clock">--:--:-- UTC</span>
+        <span class="status" id="ws-pill">connecting</span>
+      </div>
+    </header>
+
+    <section class="feeds" id="feeds"></section>
+
+    <main>
+      <section class="cards" id="cards">
+        <article class="card skeleton"></article>
+        <article class="card skeleton"></article>
+        <article class="card skeleton"></article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Venue quotes</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-tip="Trading pair, normalized across exchanges.">Symbol</th>
+                <th data-tip="Which exchange this quote came from.">Exchange</th>
+                <th class="num" data-tip="Highest price this venue will pay. You sell to them at the bid.">Bid</th>
+                <th class="num" data-tip="Amount available at this venue’s bid.">Bid size</th>
+                <th class="num" data-tip="Lowest price this venue will sell. You buy from them at the ask.">Ask</th>
+                <th class="num" data-tip="Amount available at this venue’s ask.">Ask size</th>
+                <th class="num" data-tip="Ask minus bid on this venue. Wider usually means a thinner book.">Spread</th>
+                <th data-tip="Seconds since we last received this quote.">Age</th>
+              </tr>
+            </thead>
+            <tbody id="quote-rows">
+              <tr>
+                <td colspan="8" class="empty">Waiting for the first quotes…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Arb opportunities <span class="count" id="arb-count"></span></h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-tip="Trading pair the opportunity is in.">Symbol</th>
+                <th data-tip="Exchange to buy on — they have the cheaper ask.">Buy</th>
+                <th class="num" data-tip="Price you’d pay to buy on that venue.">Ask</th>
+                <th data-tip="Exchange to sell on — they have the higher bid.">Sell</th>
+                <th class="num" data-tip="Price you’d receive selling on that venue.">Bid</th>
+                <th class="num" data-tip="Bid minus ask. Gross profit per unit, before fees and transfer time.">Edge</th>
+                <th class="num" data-tip="Edge as basis points of the midpoint. 1 bp = 0.01%.">Bps</th>
+              </tr>
+            </thead>
+            <tbody id="arb-rows">
+              <tr>
+                <td colspan="7" class="empty">No crossed books right now.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Connection history</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-tip="Which venue this row is about.">Exchange</th>
+                <th data-tip="Whether we currently have a live feed from this venue.">Status</th>
+                <th data-tip="How long the current connection (or outage) has lasted.">Session</th>
+                <th data-tip="Total time this process has been receiving quotes from this venue.">Uptime</th>
+                <th class="num" data-tip="Times the feed dropped and then came back since this process started.">Reconnects</th>
+                <th data-tip="When we last received a quote from this venue.">Last quote</th>
+                <th data-tip="Most recent disconnect reason. Kept after the feed comes back.">Last disconnect</th>
+              </tr>
+            </thead>
+            <tbody id="conn-rows">
+              <tr>
+                <td colspan="7" class="empty">Waiting for feed status…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

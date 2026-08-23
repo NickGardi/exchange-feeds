@@ -1,0 +1,216 @@
+# Class-style pipeline. First start can take several minutes (Cassandra + Spark
+# package download). Give Docker ~8 GB RAM. Tear down old volumes if you ran
+# the earlier MVP compose:  docker compose down -v
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: feeds
+      POSTGRES_PASSWORD: feeds
+      POSTGRES_DB: feeds
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-price-bars.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feeds -d feeds"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    image: bitnami/kafka:3.8
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_KRAFT_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - kafka_data:/bitnami/kafka
+
+  kafka-init:
+    image: bitnami/kafka:3.8
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic prices.binance --partitions 1 --replication-factor 1
+      kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic prices.coinbase --partitions 1 --replication-factor 1
+      kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic prices.kraken --partitions 1 --replication-factor 1
+      kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic prices.shakepay --partitions 1 --replication-factor 1
+      kafka-topics.sh --bootstrap-server kafka:9092 --list
+
+  cassandra:
+    image: cassandra:4.1
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: feeds
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES'"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+  cassandra-init:
+    image: cassandra:4.1
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    restart: "no"
+    volumes:
+      - ./infra/cassandra/init.cql:/init.cql:ro
+    command: cqlsh cassandra -f /init.cql
+
+  producers:
+    build:
+      context: .
+      dockerfile: Dockerfile.producers
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_URL: redis://redis:6379/0
+      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
+      LOG_LEVEL: INFO
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  spark:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CASSANDRA_HOST: cassandra
+      REDIS_URL: redis://redis:6379/0
+      ALERT_MOVE_PCT: "0.5"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      cassandra-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - spark_ivy:/tmp/ivy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8080"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATABASE_URL: postgresql+asyncpg://feeds:feeds@postgres:5432/feeds
+      REDIS_URL: redis://redis:6379/0
+      CASSANDRA_HOST: cassandra
+      CASSANDRA_KEYSPACE: feeds
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cassandra-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  airflow:
+    image: apache/airflow:2.10.4-python3.12
+    user: "0:0"
+    ports:
+      - "8085:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      _PIP_ADDITIONAL_REQUIREMENTS: cassandra-driver==3.29.2 psycopg2-binary==2.9.10
+      CASSANDRA_HOST: cassandra
+      AIRFLOW_POSTGRES_URL: postgresql://feeds:feeds@postgres:5432/feeds
+      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_home:/opt/airflow
+    command: standalone
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cassandra-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  kafka_data:
+  cassandra_data:
+  spark_ivy:
+  airflow_home:
