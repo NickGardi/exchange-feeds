@@ -285,11 +285,44 @@ td.num {
   text-align: right;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  padding-right: 0;
+  padding-right: 14px;
+}
+
+.history-table {
+  table-layout: fixed;
+}
+
+.history-table th,
+.history-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 16px;
+}
+
+.history-table .col-ex {
+  width: 16%;
+}
+
+.history-table .col-st {
+  width: 12%;
+}
+
+.history-table .col-re {
+  width: 14%;
+}
+
+.history-table .col-time {
+  width: 29%;
+}
+
+.history-table .mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .err {
-  max-width: 280px;
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

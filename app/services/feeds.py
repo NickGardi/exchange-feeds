@@ -51,7 +51,6 @@ class FeedManager:
                 state.reconnects += 1
                 self.alerts.on_reconnect(state.name)
             state.connected_since = now
-            state.disconnected_since = None
             state._seen_connected = True
         state.connected = True
         state.last_message_at = now

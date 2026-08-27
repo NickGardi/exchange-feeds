@@ -82,21 +82,26 @@
           <h2>Connection history</h2>
         </div>
         <div class="table-wrap">
-          <table>
+          <table class="history-table">
+            <colgroup>
+              <col class="col-ex" />
+              <col class="col-st" />
+              <col class="col-re" />
+              <col class="col-time" />
+              <col class="col-time" />
+            </colgroup>
             <thead>
               <tr>
                 <th data-tip="Which venue this row is about.">Exchange</th>
                 <th data-tip="Whether we currently have a live feed from this venue.">Status</th>
-                <th data-tip="How long the current connection (or outage) has lasted.">Session</th>
-                <th data-tip="Total time this process has been receiving quotes from this venue.">Uptime</th>
-                <th class="num" data-tip="Times the feed dropped and then came back since this process started.">Reconnects</th>
+                <th data-tip="Times the feed dropped and then came back since this process started.">Reconnects</th>
                 <th data-tip="When we last received a quote from this venue.">Last quote</th>
-                <th data-tip="Most recent disconnect reason. Kept after the feed comes back.">Last disconnect</th>
+                <th data-tip="When this feed last dropped.">Last disconnect</th>
               </tr>
             </thead>
             <tbody id="conn-rows">
               <tr>
-                <td colspan="7" class="empty">Waiting for feed status…</td>
+                <td colspan="5" class="empty">Waiting for feed status…</td>
               </tr>
             </tbody>
           </table>

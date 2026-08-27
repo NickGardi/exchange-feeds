@@ -83,6 +83,9 @@ def test_dashboard_served() -> None:
         assert response.status_code == 200
         assert "exchange-feeds" in response.text
         assert "Connection history" in response.text
+        assert "/static/app.js?v=" in response.text
+        assert "/static/styles.css?v=" in response.text
+        assert "no-store" in response.headers.get("cache-control", "").lower()
 
 
 def test_metrics_endpoint() -> None:

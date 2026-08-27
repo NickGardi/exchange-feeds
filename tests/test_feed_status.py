@@ -27,12 +27,14 @@ def test_disconnect_does_not_double_count_or_wipe_reason() -> None:
     assert state.connected is False
     assert state.reconnects == 0
     assert state.last_error == "connection closed (1006)"
-    assert state.up_seconds > 0 or state.disconnected_since is not None
+    dropped = state.disconnected_since
+    assert dropped is not None
 
     manager._set_connected(state)
     assert state.connected is True
     assert state.reconnects == 1
     assert state.last_error == "connection closed (1006)"
+    assert state.disconnected_since == dropped
 
 
 def test_feed_state_dict_timestamps_are_parseable() -> None:

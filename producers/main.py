@@ -119,7 +119,9 @@ class KafkaPublisher:
                 payload["last_quote_at"] = prev.get("last_quote_at")
             if connected or not error:
                 payload["last_error"] = prev.get("last_error")
-            if not connected and disconnected_since is None:
+            if connected:
+                payload["disconnected_since"] = prev.get("disconnected_since")
+            elif disconnected_since is None:
                 payload["disconnected_since"] = prev.get("disconnected_since")
         await self.redis.set(f"feed:{name}", json.dumps(payload), ex=120)
 

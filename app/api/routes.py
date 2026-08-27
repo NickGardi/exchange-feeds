@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.models.schemas import BestPriceResponse, FeedStatusResponse, HealthResponse, HistoryPoint
@@ -146,6 +146,13 @@ async def prices_socket(ws: WebSocket) -> None:
         runtime.hub.disconnect(ws)
 
 
+def _asset_version(name: str) -> int:
+    return int((STATIC_DIR / name).stat().st_mtime)
+
+
 @router.get("/")
-async def dashboard() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+async def dashboard() -> HTMLResponse:
+    html = (STATIC_DIR / "index.html").read_text()
+    html = html.replace("/static/styles.css", f"/static/styles.css?v={_asset_version('styles.css')}")
+    html = html.replace("/static/app.js", f"/static/app.js?v={_asset_version('app.js')}")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
